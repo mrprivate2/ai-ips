@@ -15,7 +15,7 @@ AI-Powered Intrusion Prevention System with real-time SOC dashboard.
 ## Installation
 
 ```bash
-git clone https://github.com/yourname/ai-ips
+git clone https://github.com/mrprivate2/ai-ips
 cd ai-ips
 pip install -e .
 ai-ips install

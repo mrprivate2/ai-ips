@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+venv/
+.env
+
+# Logs
+logs/
+
+# Models
+src/models/saved/
+
+# OS
+.DS_Store
