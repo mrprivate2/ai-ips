@@ -1,0 +1,20 @@
+Metadata-Version: 2.4
+Name: ai-ips
+Version: 0.1.0
+Summary: AI-powered Intrusion Prevention System
+Author: Sawan Yaduvanshi
+Requires-Python: >=3.9
+Requires-Dist: streamlit
+Requires-Dist: scapy
+Requires-Dist: pandas
+Requires-Dist: numpy
+Requires-Dist: plotly
+Requires-Dist: requests
+Requires-Dist: psutil
+Requires-Dist: scikit-learn
+Requires-Dist: joblib
+Requires-Dist: typer
+Dynamic: author
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary

@@ -1,0 +1,10 @@
+streamlit
+scapy
+pandas
+numpy
+plotly
+requests
+psutil
+scikit-learn
+joblib
+typer

@@ -1,0 +1,2 @@
+[console_scripts]
+ai-ips = src.cli.cli:app
