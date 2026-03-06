@@ -20,7 +20,7 @@ def start():
 
     print("🛡 Starting AI-IPS engine...")
 
-    engine_path = BASE_DIR / "run_network_mode.py"
+    engine_path = BASE_DIR / "src" / "engine" / "network_engine.py"
 
     subprocess.run([sys.executable, str(engine_path)])
 
@@ -37,6 +37,8 @@ def dashboard():
     dashboard_path = BASE_DIR / "dashboard" / "app.py"
 
     subprocess.run([
+        sys.executable,
+        "-m",
         "streamlit",
         "run",
         str(dashboard_path)
