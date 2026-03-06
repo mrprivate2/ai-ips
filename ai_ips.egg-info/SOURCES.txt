@@ -1,8 +1,5 @@
 README.md
 setup.py
-ai_ips/__init__.py
-ai_ips/cli.py
-ai_ips/runner.py
 ai_ips.egg-info/PKG-INFO
 ai_ips.egg-info/SOURCES.txt
 ai_ips.egg-info/dependency_links.txt
