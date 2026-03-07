@@ -1,31 +1,38 @@
 import csv
-import os
+from pathlib import Path
 from datetime import datetime
 
-DATASET_PATH = "logs/live_training_data.csv"
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+DATASET_PATH = BASE_DIR / "logs" / "live_training_data.csv"
 
 
-def save_sample(features, label):
+def save_sample(features, attack_type):
 
-    os.makedirs("logs", exist_ok=True)
+    try:
 
-    file_exists = os.path.exists(DATASET_PATH)
+        DATASET_PATH.parent.mkdir(exist_ok=True)
 
-    with open(DATASET_PATH, "a", newline="") as f:
+        # convert label
+        label = 1 if attack_type != "NORMAL" else 0
 
-        writer = csv.writer(f)
+        # ensure numeric features
+        features = [float(x) for x in features]
 
-        if not file_exists:
-            writer.writerow([
-                "timestamp",
-                "packet_len",
-                "dst_port",
-                "label"
-            ])
+        row = [datetime.utcnow().isoformat()] + features + [label]
 
-        writer.writerow([
-            datetime.utcnow().isoformat(),
-            features[0],
-            features[1],
-            label
-        ])
+        file_exists = DATASET_PATH.exists()
+
+        with open(DATASET_PATH, "a", newline="") as f:
+
+            writer = csv.writer(f)
+
+            if not file_exists:
+                header = ["timestamp"] + [f"f{i}" for i in range(len(features))] + ["label"]
+                writer.writerow(header)
+
+            writer.writerow(row)
+
+    except Exception:
+        # IPS must never crash because of dataset logging
+        pass

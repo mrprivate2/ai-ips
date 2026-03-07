@@ -3,15 +3,18 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Virtual environment
+# Virtual env
 venv/
 .env
 
 # Logs
-logs/
+logs/*.csv
+logs/*.json
+logs/*.txt
 
-# Models
-src/models/saved/
+# ML models
+src/models/saved/*.pkl
+src/models/saved/*.joblib
 
-# OS
+# OS files
 .DS_Store
