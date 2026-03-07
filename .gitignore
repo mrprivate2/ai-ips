@@ -1,20 +1,11 @@
-# Python
+venv/
 __pycache__/
 *.pyc
-*.pyo
 
-# Virtual env
-venv/
-.env
-
-# Logs
-logs/*.csv
-logs/*.json
+logs/security_events.json
+logs/*.pcap
 logs/*.txt
 
-# ML models
 src/models/saved/*.pkl
-src/models/saved/*.joblib
 
-# OS files
 .DS_Store

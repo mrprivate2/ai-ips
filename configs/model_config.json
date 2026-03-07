@@ -1,6 +1,5 @@
 {
-    "supervised_model_path": "src/models/saved/supervised.pkl",
-    "unsupervised_model_path": "src/models/saved/unsupervised.pkl",
-    "weight_supervised": 0.7,
-    "weight_anomaly": 0.3
+  "supervised_model_path": "src/models/saved/supervised_model.pkl",
+  "unsupervised_model_path": "src/models/saved/unsupervised_model.pkl",
+  "scaler_path": "src/models/saved/scaler.pkl"
 }

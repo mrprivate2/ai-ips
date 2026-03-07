@@ -7,7 +7,6 @@ class PacketSniffer:
     def __init__(self, interface="en0"):
 
         self.interface = interface
-
         print(f"[SNIFFER] Listening on interface: {self.interface}")
 
     # ---------------------------------------
@@ -19,8 +18,7 @@ class PacketSniffer:
         sniff(
             iface=self.interface,
             prn=lambda pkt: self.process_packet(pkt, packet_callback),
-            store=False,
-            filter="ip"
+            store=False
         )
 
     # ---------------------------------------
@@ -31,7 +29,6 @@ class PacketSniffer:
 
         try:
 
-            # Ignore packets without IP
             if not packet.haslayer(IP):
                 return
 
@@ -44,44 +41,49 @@ class PacketSniffer:
             tcp_flag = ""
 
             # ----------------------------
-            # TCP Extraction
+            # TCP extraction
             # ----------------------------
 
             if packet.haslayer(TCP):
 
-                tcp_layer = packet[TCP]
+                tcp = packet[TCP]
 
-                dst_port = int(tcp_layer.dport)
+                dst_port = int(tcp.dport)
 
-                flags = tcp_layer.flags
+                flags = str(tcp.flags)
 
-                if flags & 0x02:
-                    tcp_flag = "S"   # SYN
-                elif flags & 0x10:
-                    tcp_flag = "A"   # ACK
-                elif flags & 0x01:
-                    tcp_flag = "F"   # FIN
-                else:
-                    tcp_flag = ""
+                # detect SYN (scan attempts)
+                if "S" in flags and "A" not in flags:
+                    tcp_flag = "S"
+
+                # SYN+ACK
+                elif "S" in flags and "A" in flags:
+                    tcp_flag = "SA"
+
+                # ACK
+                elif "A" in flags:
+                    tcp_flag = "A"
+
+                # FIN
+                elif "F" in flags:
+                    tcp_flag = "F"
 
             # ----------------------------
-            # FEATURE EXTRACTION
+            # Feature extraction
             # ----------------------------
 
             packet_len = len(packet)
 
-            # Zero-Day detection needs richer features
             features = np.array([
                 packet_len,
                 dst_port
             ])
 
             # ----------------------------
-            # SEND TO IPS ENGINE
+            # Send to IPS engine
             # ----------------------------
 
             callback(
-                packet,        # needed for PCAP logging
                 features,
                 src_ip,
                 dst_ip,
@@ -90,6 +92,5 @@ class PacketSniffer:
             )
 
         except Exception:
-
-            # IPS must never crash
+            # IPS must never crash due to packet parsing
             pass
