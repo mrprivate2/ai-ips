@@ -1,38 +1,122 @@
 import pandas as pd
 import joblib
-import os
+from pathlib import Path
 from sklearn.ensemble import RandomForestClassifier
 
-DATASET = "logs/live_training_data.csv"
-MODEL_PATH = "src/models/saved/self_learning_model.pkl"
 
+# =============================
+# PROJECT ROOT
+# =============================
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+
+DATASET_PATH = BASE_DIR / "logs" / "live_training_data.csv"
+MODEL_PATH = BASE_DIR / "src/models/saved/supervised_model.pkl"
+
+
+# =============================
+# RETRAIN MODEL
+# =============================
 
 def retrain_model():
 
-    if not os.path.exists(DATASET):
-        print("[TRAINING] Dataset not found")
+    print("🧠 Retraining AI models...")
+
+    # -----------------------------
+    # CHECK DATASET EXISTS
+    # -----------------------------
+
+    if not DATASET_PATH.exists():
+        print("⚠ Dataset not found:", DATASET_PATH)
         return
 
-    df = pd.read_csv(DATASET)
+    # -----------------------------
+    # LOAD DATASET
+    # -----------------------------
 
-    if len(df) < 50:
-        print("[TRAINING] Not enough samples yet")
+    try:
+        df = pd.read_csv(DATASET_PATH)
+    except Exception as e:
+        print("❌ Failed to read dataset:", e)
         return
 
-    if "label" not in df:
-        print("[TRAINING] Missing labels")
+    if df.empty:
+        print("⚠ Dataset is empty. Skipping training.")
         return
+
+    print(f"📊 Raw samples: {len(df)}")
+
+    # -----------------------------
+    # REMOVE TIMESTAMP COLUMN
+    # -----------------------------
+
+    if "timestamp" in df.columns:
+        df = df.drop(columns=["timestamp"])
+
+    # -----------------------------
+    # REMOVE ROWS WITH MISSING LABEL
+    # -----------------------------
+
+    if "label" not in df.columns:
+        print("⚠ Dataset missing 'label' column.")
+        return
+
+    df = df.dropna(subset=["label"])
+
+    # -----------------------------
+    # REMOVE OTHER NaN ROWS
+    # -----------------------------
+
+    df = df.dropna()
+
+    # -----------------------------
+    # SPLIT FEATURES / LABEL
+    # -----------------------------
 
     X = df.drop(columns=["label"])
     y = df["label"]
 
+    # keep numeric columns only
+    X = X.select_dtypes(include=["number"])
+
+    print(f"🧪 Clean training samples: {len(X)}")
+
+    # -----------------------------
+    # MINIMUM DATA CHECK
+    # -----------------------------
+
+    if len(X) < 10:
+        print("⚠ Not enough samples to train model (need at least 10).")
+        return
+
+    # -----------------------------
+    # TRAIN MODEL
+    # -----------------------------
+
+    print("⚙ Training RandomForest model...")
+
     model = RandomForestClassifier(
-        n_estimators=100,
-        max_depth=10
+        n_estimators=150,
+        max_depth=10,
+        random_state=42,
+        n_jobs=-1
     )
 
-    model.fit(X, y)
+    try:
+        model.fit(X, y)
+    except Exception as e:
+        print("❌ Training failed:", e)
+        return
 
-    joblib.dump(model, MODEL_PATH)
+    # -----------------------------
+    # SAVE MODEL
+    # -----------------------------
 
-    print(f"[AI TRAINING] Model retrained with {len(df)} samples")
+    try:
+        joblib.dump(model, MODEL_PATH)
+        print("✅ Model saved to:", MODEL_PATH)
+    except Exception as e:
+        print("❌ Failed to save model:", e)
+        return
+
+    print("🚀 AI model retrained successfully.")

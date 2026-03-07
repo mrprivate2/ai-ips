@@ -1,13 +1,23 @@
 import sys
-import os
 import socket
 import json
 import numpy as np
 import time
 import psutil
+from pathlib import Path
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(BASE_DIR)
+# =============================
+# PROJECT ROOT
+# =============================
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+
+sys.path.append(str(BASE_DIR))
+
+
+# =============================
+# IMPORT MODULES
+# =============================
 
 from src.detection.hybrid_detector import HybridDetector
 from src.core.behavior_engine import BehaviorEngine
@@ -18,7 +28,6 @@ from src.monitoring.security_logger import SecurityLogger
 from src.ips.firewall import FirewallManager
 from src.explainability.decision_explainer import explain_attack
 
-# Self learning
 from src.training.dataset_builder import save_sample
 from src.training.training_scheduler import check_retraining
 
@@ -82,10 +91,10 @@ NETWORK_INTERFACE = detect_interface()
 
 
 # =============================
-# LOAD MODEL CONFIG
+# LOAD CONFIG
 # =============================
 
-config_path = os.path.join(BASE_DIR, "configs", "model_config.json")
+config_path = BASE_DIR / "configs" / "model_config.json"
 
 with open(config_path) as f:
     config = json.load(f)
@@ -106,7 +115,7 @@ behavior_engine = BehaviorEngine()
 firewall = FirewallManager()
 
 blacklist = BlacklistManager(
-    os.path.join(BASE_DIR, "logs", "blacklist.txt")
+    BASE_DIR / "logs" / "blacklist.txt"
 )
 
 unblock_manager = UnblockManager(
@@ -146,22 +155,16 @@ def handle_packet(features, src_ip, dst_ip, dst_port, tcp_flag):
         if features is None:
             return
 
-        # Ignore own traffic
         if src_ip == LOCAL_IP:
             return
 
-        # Ignore whitelist
         if any(src_ip.startswith(w) for w in WHITELIST):
             return
 
-        # Ignore already blocked
         if blacklist.is_blacklisted(src_ip):
             return
 
-        # =============================
-        # BEHAVIOR ANALYSIS
-        # =============================
-
+        # Behavior analysis
         behavior = behavior_engine.analyze(
             src_ip,
             dst_port,
@@ -171,27 +174,18 @@ def handle_packet(features, src_ip, dst_ip, dst_port, tcp_flag):
         behavioral_risk = behavior.get("risk", 0.0)
         attack_type = behavior.get("attack_type", "UNKNOWN")
 
-        # =============================
-        # AI DETECTION
-        # =============================
-
+        # AI detection
         ai_risk = 0.0
 
         try:
-
             result = detector.detect(np.array([features]))
-
             ai_risk = result.get("final_threat_score", 0.0)
-
         except Exception:
             pass
 
         final_risk = max(behavioral_risk, ai_risk)
 
-        # =============================
-        # SELF LEARNING
-        # =============================
-
+        # Self learning
         try:
             save_sample(features, attack_type)
         except Exception:
@@ -206,10 +200,7 @@ def handle_packet(features, src_ip, dst_ip, dst_port, tcp_flag):
 
             last_training_check = time.time()
 
-        # =============================
-        # DECISION ENGINE
-        # =============================
-
+        # Decision engine
         if final_risk >= 0.65:
 
             if src_ip in recent_blocks:
@@ -226,9 +217,7 @@ def handle_packet(features, src_ip, dst_ip, dst_port, tcp_flag):
                 print(explanation)
 
             firewall.block_ip(src_ip)
-
             blacklist.add_ip(src_ip)
-
             unblock_manager.block_with_timer(src_ip)
 
             security_logger.log_event(
@@ -245,7 +234,6 @@ def handle_packet(features, src_ip, dst_ip, dst_port, tcp_flag):
             if now - last_log_time > 1:
 
                 print(f"[WARNING] {src_ip} — {attack_type}")
-
                 last_log_time = now
 
             security_logger.log_event(
@@ -261,7 +249,7 @@ def handle_packet(features, src_ip, dst_ip, dst_port, tcp_flag):
 
 
 # =============================
-# AUTO RECOVER SNIFFER
+# START SNIFFER
 # =============================
 
 def start_sniffer():
@@ -285,7 +273,6 @@ def start_sniffer():
             except Exception:
 
                 print("\n⚠ Network interface changed. Restarting sniffer...")
-
                 time.sleep(3)
 
     except KeyboardInterrupt:
