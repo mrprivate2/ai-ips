@@ -82,7 +82,7 @@ st.divider()
 
 
 # =============================
-# AI THREAT LEVEL (REALISTIC)
+# AI THREAT LEVEL
 # =============================
 
 st.subheader("🧠 AI Threat Level")
@@ -116,13 +116,24 @@ st.divider()
 
 
 # =============================
+# SAFE PLOT FUNCTION (🔥 FIX)
+# =============================
+
+def safe_plot(fig, empty_msg="No data available"):
+    if fig is not None and hasattr(fig, "to_dict"):
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info(empty_msg)
+
+
+# =============================
 # NETWORK TRAFFIC
 # =============================
 
 st.subheader("📡 Network Traffic Rate")
 
 fig_rate = packet_rate_graph(df)
-st.plotly_chart(fig_rate, use_container_width=True) if fig_rate else st.info("No data yet")
+safe_plot(fig_rate, "No traffic data yet")
 
 st.divider()
 
@@ -134,7 +145,7 @@ st.divider()
 st.subheader("🌍 Global Attack Map")
 
 fig_map = build_attack_map(df)
-st.plotly_chart(fig_map, use_container_width=True) if fig_map else st.info("No attacks yet")
+safe_plot(fig_map, "No attacks yet")
 
 st.divider()
 
@@ -157,7 +168,7 @@ if not df.empty and "attack_type" in df.columns:
         template="plotly_dark"
     )
 
-    st.plotly_chart(fig_pie, use_container_width=True)
+    safe_plot(fig_pie)
 
 else:
     st.info("No attack data available.")
@@ -202,7 +213,7 @@ if not df.empty and "timestamp" in df.columns:
         template="plotly_dark"
     )
 
-    st.plotly_chart(fig_time, use_container_width=True)
+    safe_plot(fig_time)
 
 else:
     st.info("No timeline data yet.")
@@ -211,7 +222,7 @@ st.divider()
 
 
 # =============================
-# LIVE ALERTS (MEANINGFUL)
+# LIVE ALERTS
 # =============================
 
 st.subheader("⚡ Live Alerts")

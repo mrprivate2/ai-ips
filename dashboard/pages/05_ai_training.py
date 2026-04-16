@@ -12,6 +12,28 @@ DATASET = "logs/live_training_data.csv"
 
 
 # =============================
+# SAFE DATA LOADER (🔥 FIX)
+# =============================
+
+def load_dataset_safe(path):
+    try:
+        df = pd.read_csv(
+            path,
+            on_bad_lines="skip",   # ✅ skip corrupted rows
+            engine="python"
+        )
+
+        # remove fully empty rows
+        df.dropna(how="all", inplace=True)
+
+        return df
+
+    except Exception as e:
+        st.error(f"Dataset load failed: {e}")
+        return None
+
+
+# =============================
 # ACTION BUTTONS
 # =============================
 
@@ -39,17 +61,17 @@ if not os.path.exists(DATASET):
 
 
 # =============================
-# LOAD DATA
+# LOAD DATA (FIXED)
 # =============================
 
-try:
-    df = pd.read_csv(DATASET)
-except Exception:
-    st.error("Training dataset corrupted.")
+df = load_dataset_safe(DATASET)
+
+if df is None:
+    st.error("Dataset corrupted beyond recovery.")
     st.stop()
 
 if df.empty:
-    st.info("Dataset exists but no samples collected yet.")
+    st.warning("Dataset exists but contains no usable data.")
     st.stop()
 
 
@@ -82,7 +104,7 @@ st.divider()
 
 
 # =============================
-# DATA QUALITY CHECK (🔥 NEW)
+# DATA QUALITY CHECK
 # =============================
 
 st.subheader("🧪 Data Quality")
@@ -176,7 +198,6 @@ if not numeric_df.empty:
 
     st.plotly_chart(fig_corr, use_container_width=True)
 
-    # 🔥 simple insight
     high_corr = (corr.abs() > 0.9).sum().sum() - len(corr)
 
     if high_corr > 0:
