@@ -3,7 +3,6 @@ import numpy as np
 import os
 import warnings
 
-# hide sklearn warnings
 warnings.filterwarnings("ignore")
 
 
@@ -11,21 +10,14 @@ class HybridDetector:
 
     def __init__(self, supervised_model_path, unsupervised_model_path, config):
 
-        # ---------------------------
-        # CONFIG
-        # ---------------------------
-
-        self.weight_supervised = config.get("weight_supervised", 0.7)
-        self.weight_anomaly = config.get("weight_anomaly", 0.3)
+        self.weight_supervised = config.get("weight_supervised", 0.6)
+        self.weight_anomaly = config.get("weight_anomaly", 0.4)
 
         self.warning_threshold = config.get("warning_threshold", 0.4)
-        self.block_threshold = config.get("block_threshold", 0.6)
+        self.block_threshold = config.get("block_threshold", 0.65)
 
-        self.zero_day_threshold = config.get("zero_day_threshold", 0.8)
-
-        # ---------------------------
-        # MODEL PATHS
-        # ---------------------------
+        # renamed (real meaning)
+        self.anomaly_threshold = config.get("anomaly_threshold", 0.6)
 
         self.supervised_model_path = supervised_model_path
         self.unsupervised_model_path = unsupervised_model_path
@@ -35,9 +27,14 @@ class HybridDetector:
         self.unsupervised_model = None
         self.scaler = None
 
-        # ---------------------------
-        # LOAD SUPERVISED MODEL
-        # ---------------------------
+        # LOAD MODELS
+        self._load_models()
+
+    # -------------------------------------
+    # LOAD MODELS
+    # -------------------------------------
+
+    def _load_models(self):
 
         if os.path.exists(self.supervised_model_path):
             try:
@@ -45,12 +42,6 @@ class HybridDetector:
                 print("[AI] Supervised model loaded")
             except Exception as e:
                 print("[AI] Failed to load supervised model:", e)
-        else:
-            print("[AI] Supervised model not found")
-
-        # ---------------------------
-        # LOAD ANOMALY MODEL
-        # ---------------------------
 
         if os.path.exists(self.unsupervised_model_path):
             try:
@@ -58,12 +49,6 @@ class HybridDetector:
                 print("[AI] Anomaly model loaded")
             except Exception as e:
                 print("[AI] Failed to load anomaly model:", e)
-        else:
-            print("[AI] Anomaly model disabled")
-
-        # ---------------------------
-        # LOAD SCALER
-        # ---------------------------
 
         if os.path.exists(self.scaler_path):
             try:
@@ -71,11 +56,9 @@ class HybridDetector:
                 print("[AI] Scaler loaded")
             except Exception as e:
                 print("[AI] Failed to load scaler:", e)
-        else:
-            print("[AI] Scaler disabled")
 
     # -------------------------------------
-    # MAIN DETECTION FUNCTION
+    # MAIN DETECTION
     # -------------------------------------
 
     def detect(self, X):
@@ -90,122 +73,124 @@ class HybridDetector:
             if X.ndim == 1:
                 X = X.reshape(1, -1)
 
-            # ---------------------------
-            # SCALE FEATURES
-            # ---------------------------
-
+            # SCALE
             try:
-                if self.scaler is not None:
-                    X_scaled = self.scaler.transform(X)
-                else:
-                    X_scaled = X
-            except Exception:
+                X_scaled = self.scaler.transform(X) if self.scaler else X
+            except:
                 X_scaled = X
 
-            # ---------------------------
+            # =============================
             # SUPERVISED MODEL
-            # ---------------------------
+            # =============================
 
             supervised_score = 0.0
             predicted_class = 0
 
-            if self.supervised_model is not None:
+            if self.supervised_model:
 
                 try:
-
                     if hasattr(self.supervised_model, "predict_proba"):
 
                         probs = self.supervised_model.predict_proba(X_scaled)
-
-                        if probs.shape[1] > 1:
-                            supervised_score = float(probs[0][1])
-                        else:
-                            supervised_score = float(probs[0][0])
-
+                        supervised_score = float(probs[0][1])
                         predicted_class = int(np.argmax(probs))
 
                     else:
-
                         pred = self.supervised_model.predict(X_scaled)[0]
-                        predicted_class = int(pred)
                         supervised_score = float(pred)
+                        predicted_class = int(pred)
 
-                except Exception:
+                except:
                     pass
 
-            # ---------------------------
+            # =============================
             # ANOMALY MODEL
-            # ---------------------------
+            # =============================
 
             anomaly_score = 0.0
 
-            if self.unsupervised_model is not None:
+            if self.unsupervised_model:
 
                 try:
+                    raw_score = float(self.unsupervised_model.decision_function(X_scaled)[0])
 
-                    raw_score = float(
-                        self.unsupervised_model.decision_function(X_scaled)[0]
-                    )
+                    # normalize properly
+                    anomaly_score = 1 - (raw_score + 0.5)
+                    anomaly_score = max(0.0, min(anomaly_score, 1.0))
 
-                    anomaly_score = max(0.0, -raw_score)
-                    anomaly_score = min(anomaly_score, 1.0)
-
-                except Exception:
+                except:
                     anomaly_score = 0.0
 
-            # ---------------------------
+            # =============================
             # HYBRID SCORE
-            # ---------------------------
+            # =============================
 
             final_threat_score = (
-                self.weight_supervised * supervised_score
-                + self.weight_anomaly * anomaly_score
+                self.weight_supervised * supervised_score +
+                self.weight_anomaly * anomaly_score
             )
 
-            # ---------------------------
-            # ZERO DAY DETECTION
-            # ---------------------------
+            # =============================
+            # 🧠 ANOMALY DETECTION (REAL)
+            # =============================
 
-            zero_day_detected = False
+            attack_type = "NORMAL"
 
-            if anomaly_score >= self.zero_day_threshold:
-                zero_day_detected = True
+            if anomaly_score >= self.anomaly_threshold:
+                attack_type = "ANOMALY_DETECTED"
                 final_threat_score = min(final_threat_score + 0.2, 1.0)
 
-            # ---------------------------
+            # =============================
+            # CONFIDENCE (IMPROVED)
+            # =============================
+
+            confidence = (
+                abs(supervised_score - anomaly_score)
+            )
+
+            # =============================
             # THREAT LEVEL
-            # ---------------------------
+            # =============================
 
             if final_threat_score >= self.block_threshold:
                 threat_level = "BLOCK"
-
             elif final_threat_score >= self.warning_threshold:
                 threat_level = "WARNING"
-
             else:
                 threat_level = "NORMAL"
 
-            confidence = abs(supervised_score - 0.5) * 2
+            # =============================
+            # 🧠 EXPLAINABILITY FLAGS
+            # =============================
+
+            explanation_flags = {}
+
+            if supervised_score > 0.7:
+                explanation_flags["high_supervised_risk"] = True
+
+            if anomaly_score > 0.7:
+                explanation_flags["high_anomaly"] = True
+
+            if abs(supervised_score - anomaly_score) < 0.2:
+                explanation_flags["model_agreement"] = True
 
             return {
                 "predicted_class_index": predicted_class,
-                "supervised_score": float(supervised_score),
-                "anomaly_score": float(anomaly_score),
-                "final_threat_score": float(final_threat_score),
-                "confidence": float(confidence),
+                "supervised_score": supervised_score,
+                "anomaly_score": anomaly_score,
+                "final_threat_score": final_threat_score,
+                "confidence": confidence,
                 "threat_level": threat_level,
-                "zero_day": zero_day_detected,
-                "explanation_flags": {}
+                "attack_type": attack_type,
+                "explanation_flags": explanation_flags
             }
 
         except Exception as e:
-
-            print("[AI] Detection error:", e)
-
+            print("[AI ERROR]", e)
             return self._safe_result()
 
     # -------------------------------------
-    # SAFE DEFAULT RESULT
+    # SAFE RESULT
     # -------------------------------------
 
     def _safe_result(self):
@@ -217,6 +202,6 @@ class HybridDetector:
             "final_threat_score": 0.0,
             "confidence": 0.0,
             "threat_level": "NORMAL",
-            "zero_day": False,
+            "attack_type": "NORMAL",
             "explanation_flags": {}
         }

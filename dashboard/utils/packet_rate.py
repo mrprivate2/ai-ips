@@ -18,7 +18,6 @@ def packet_rate_graph(df):
     # ==============================
 
     df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-
     df = df.dropna(subset=["timestamp"])
 
     if df.empty:
@@ -38,14 +37,25 @@ def packet_rate_graph(df):
         return None
 
     # ==============================
-    # TRAFFIC SPIKE DETECTION
+    # SMOOTHING (🔥 IMPORTANT)
+    # ==============================
+
+    rate["rolling_avg"] = rate["events"].rolling(window=3, min_periods=1).mean()
+
+    # ==============================
+    # SPIKE DETECTION (IMPROVED)
     # ==============================
 
     mean_rate = rate["events"].mean()
+    std_rate = rate["events"].std()
 
-    spike_threshold = mean_rate * 2 if mean_rate > 0 else 10
+    # fallback for very small datasets
+    if pd.isna(std_rate) or std_rate == 0:
+        threshold = mean_rate * 2 if mean_rate > 0 else 5
+    else:
+        threshold = mean_rate + 2 * std_rate
 
-    rate["spike"] = rate["events"] > spike_threshold
+    rate["spike"] = rate["events"] > threshold
 
     # ==============================
     # BUILD GRAPH
@@ -53,40 +63,34 @@ def packet_rate_graph(df):
 
     fig = go.Figure()
 
-    # Normal traffic line
+    # Raw traffic
     fig.add_trace(go.Scatter(
-
         x=rate["timestamp"],
         y=rate["events"],
-
         mode="lines",
-
         name="Traffic Rate",
-
-        line=dict(
-            color="cyan",
-            width=2
-        )
+        line=dict(color="cyan", width=2)
     ))
 
-    # Traffic spikes
-    spike_points = rate[rate["spike"]]
+    # Smoothed baseline
+    fig.add_trace(go.Scatter(
+        x=rate["timestamp"],
+        y=rate["rolling_avg"],
+        mode="lines",
+        name="Baseline",
+        line=dict(color="yellow", dash="dash")
+    ))
 
-    if not spike_points.empty:
+    # Spikes
+    spikes = rate[rate["spike"]]
 
+    if not spikes.empty:
         fig.add_trace(go.Scatter(
-
-            x=spike_points["timestamp"],
-            y=spike_points["events"],
-
+            x=spikes["timestamp"],
+            y=spikes["events"],
             mode="markers",
-
             name="Traffic Spike",
-
-            marker=dict(
-                color="red",
-                size=8
-            )
+            marker=dict(color="red", size=8)
         ))
 
     # ==============================
@@ -94,19 +98,12 @@ def packet_rate_graph(df):
     # ==============================
 
     fig.update_layout(
-
         template="plotly_dark",
-
         title="Network Events Per 10 Seconds",
-
         xaxis_title="Time",
-
         yaxis_title="Events",
-
         margin=dict(l=0, r=0, t=40, b=0),
-
         height=350
-
     )
 
     return fig

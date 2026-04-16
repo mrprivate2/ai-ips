@@ -1,18 +1,42 @@
 import plotly.graph_objects as go
 
+
 def threat_gauge(score):
 
+    # ==============================
+    # VALIDATION
+    # ==============================
+
+    if score is None:
+        score = 0
+
+    # clamp between 0 and 1
+    score = max(0, min(score, 1))
+
+    # ==============================
+    # BUILD GAUGE
+    # ==============================
+
     fig = go.Figure(go.Indicator(
+
         mode="gauge+number",
-        value=score,
-        title={'text': "AI Threat Confidence"},
+
+        value=score * 100,
+
+        number={'suffix': "%"},
+
+        title={'text': "Threat Level"},
+
         gauge={
-            'axis': {'range': [0, 1]},
+
+            'axis': {'range': [0, 100]},
+
             'bar': {'color': "red"},
+
             'steps': [
-                {'range': [0, 0.3], 'color': "green"},
-                {'range': [0.3, 0.7], 'color': "orange"},
-                {'range': [0.7, 1], 'color': "red"}
+                {'range': [0, 30], 'color': "green"},     # normal
+                {'range': [30, 70], 'color': "orange"},   # suspicious
+                {'range': [70, 100], 'color': "red"}      # high threat
             ]
         }
     ))

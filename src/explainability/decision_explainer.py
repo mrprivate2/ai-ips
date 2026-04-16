@@ -1,26 +1,60 @@
-def explain_attack(features, attack_type):
+# =========================================
+# AI-IPS Explainability Module
+# =========================================
 
-    reasons = []
+"""
+Standalone explainability module
+NO circular imports
+"""
+
+from src.explainability.feature_importance import explain_features
+
+
+def explain_attack(features, attack_type):
+    """
+    Generate explanation for detected attack
+    """
 
     try:
 
-        packet_rate = features[0]
-        syn_ratio = features[1]
-        port_entropy = features[2]
+        # =============================
+        # BASE ATTACK EXPLANATION
+        # =============================
 
-        if packet_rate > 100:
-            reasons.append("Packet rate anomaly")
+        explanation_map = {
 
-        if syn_ratio > 0.7:
-            reasons.append("SYN flood pattern")
+            "PORT_SCAN": "Multiple ports accessed rapidly",
 
-        if port_entropy > 3:
-            reasons.append("Abnormal port entropy")
+            "SYN_FLOOD": "High SYN packet rate without proper handshake",
 
-    except:
-        pass
+            "TRAFFIC_ANOMALY": "Abnormally high traffic volume detected",
 
-    if not reasons:
-        reasons.append("Suspicious traffic pattern")
+            "ANOMALY_DETECTED": "Unusual behavior detected by anomaly model",
 
-    return reasons
+            "NORMAL": "Traffic appears normal"
+        }
+
+        base_explanation = explanation_map.get(
+            attack_type,
+            "Suspicious behavior detected"
+        )
+
+        # =============================
+        # FEATURE EXPLANATION
+        # =============================
+
+        feature_reasons = explain_features(features)
+
+        # =============================
+        # COMBINE OUTPUT
+        # =============================
+
+        if feature_reasons:
+            full_explanation = base_explanation + " | " + " | ".join(feature_reasons)
+        else:
+            full_explanation = base_explanation
+
+        return full_explanation
+
+    except Exception as e:
+        return f"Explanation error: {str(e)}"

@@ -6,20 +6,14 @@ class BehaviorEngine:
 
     def __init__(self):
 
-        # packet timestamps per IP
         self.ip_packet_times = defaultdict(list)
-
-        # unique ports accessed per IP
         self.ip_ports = defaultdict(set)
-
-        # SYN packet counter
         self.syn_counts = defaultdict(int)
+        self.last_seen = {}
+        self.ip_history = defaultdict(int)
 
-        # cleanup timer
         self.last_cleanup = time.time()
-
-        # detection window (shorter = faster detection)
-        self.window_seconds = 3
+        self.window_seconds = 5  # improved detection window
 
     # ---------------------------------------
     # ANALYZE NETWORK BEHAVIOR
@@ -31,39 +25,44 @@ class BehaviorEngine:
 
         try:
             destination_port = int(destination_port)
-        except Exception:
+        except:
             destination_port = 0
 
         tcp_flag = str(tcp_flag)
 
         # -----------------------------
-        # Track packet timestamps
+        # TRACK TIMESTAMPS
         # -----------------------------
 
         self.ip_packet_times[source_ip].append(now)
 
-        # keep only recent packets
         self.ip_packet_times[source_ip] = [
             t for t in self.ip_packet_times[source_ip]
             if now - t <= self.window_seconds
         ]
 
         # -----------------------------
-        # Track accessed ports
+        # TRACK PORTS
         # -----------------------------
 
         self.ip_ports[source_ip].add(destination_port)
 
         # -----------------------------
-        # Track SYN packets
+        # TRACK SYN
         # -----------------------------
 
-        # SYN without ACK = connection attempt
         if "S" in tcp_flag and "A" not in tcp_flag:
             self.syn_counts[source_ip] += 1
 
         # -----------------------------
-        # Compute metrics
+        # INTER-ARRIVAL TIME
+        # -----------------------------
+
+        time_diff = now - self.last_seen.get(source_ip, now)
+        self.last_seen[source_ip] = now
+
+        # -----------------------------
+        # METRICS
         # -----------------------------
 
         packet_rate = len(self.ip_packet_times[source_ip])
@@ -73,38 +72,52 @@ class BehaviorEngine:
         risk = 0.0
         attack_type = "NORMAL"
 
-        # -----------------------------
-        # FAST PORT SCAN detection
-        # -----------------------------
-        # Nmap sends many SYN packets quickly
+        # =============================
+        # 🔥 PORT SCAN
+        # =============================
 
-        if syn_count >= 15:
-            risk = 0.95
+        if port_count >= 8 and packet_rate > 10:
+            risk = 0.9
             attack_type = "PORT_SCAN"
 
-        # backup rule if ports vary
-        elif port_count >= 8:
-            risk = 0.95
-            attack_type = "PORT_SCAN"
+        # =============================
+        # 🔥 SYN FLOOD
+        # =============================
 
-        # -----------------------------
-        # SYN FLOOD detection
-        # -----------------------------
-
-        elif syn_count >= 60:
+        elif syn_count >= 30:
             risk = 0.95
             attack_type = "SYN_FLOOD"
 
-        # -----------------------------
-        # TRAFFIC ANOMALY detection
-        # -----------------------------
+        # =============================
+        # 🔥 TRAFFIC BURST
+        # =============================
 
-        elif packet_rate >= 40:
-            risk = 0.80
-            attack_type = "TRAFFIC_ANOMALY"
+        elif packet_rate >= 25:
+            risk = 0.75
+            attack_type = "TRAFFIC_BURST"
+
+        # =============================
+        # 🔥 STEALTH ATTACK
+        # =============================
+
+        elif time_diff < 0.03 and packet_rate > 10:
+            risk = 0.65
+            attack_type = "STEALTH_ATTACK"
+
+        # =============================
+        # HISTORY BOOST
+        # =============================
+
+        if attack_type != "NORMAL":
+            self.ip_history[source_ip] += 1
+
+        if self.ip_history[source_ip] > 2:
+            risk += 0.1
+
+        risk = min(risk, 1.0)
 
         # -----------------------------
-        # Periodic memory cleanup
+        # CLEANUP (memory safe)
         # -----------------------------
 
         if now - self.last_cleanup > 60:
@@ -116,14 +129,12 @@ class BehaviorEngine:
                     self.ip_packet_times.pop(ip, None)
                     self.ip_ports.pop(ip, None)
                     self.syn_counts.pop(ip, None)
+                    self.last_seen.pop(ip, None)
+                    self.ip_history.pop(ip, None)
 
             self.last_cleanup = now
 
-        # -----------------------------
-        # Return result
-        # -----------------------------
-
         return {
-            "risk": min(risk, 1.0),
+            "risk": risk,
             "attack_type": attack_type
         }

@@ -1,24 +1,65 @@
 import os
 import subprocess
 import platform
+import sys
+
+
+def run_command(cmd):
+    try:
+        subprocess.run(cmd, check=True)
+        return True
+    except Exception as e:
+        print(f"❌ Failed: {' '.join(cmd)}")
+        print("Error:", e)
+        return False
 
 
 def install_system():
 
-    print("🛡 Installing AI-IPS dependencies...")
+    print("🛡 Installing AI-IPS dependencies...\n")
 
     system = platform.system()
 
+    # =============================
+    # SYSTEM DEPENDENCIES
+    # =============================
+
+    print("🔧 Installing system tools...")
+
     if system == "Linux":
-        subprocess.run(["sudo", "apt", "install", "tcpdump", "-y"])
+        run_command(["sudo", "apt", "update"])
+        run_command(["sudo", "apt", "install", "tcpdump", "-y"])
 
     elif system == "Darwin":
-        subprocess.run(["brew", "install", "tcpdump"])
+        # check if brew exists
+        if subprocess.call(["which", "brew"], stdout=subprocess.DEVNULL) == 0:
+            run_command(["brew", "install", "tcpdump"])
+        else:
+            print("⚠ Homebrew not found. Install it first: https://brew.sh")
 
-    print("Installing python dependencies...")
-    subprocess.run(["pip", "install", "-r", "requirements.txt"])
+    elif system == "Windows":
+        print("⚠ Windows detected")
+        print("Install Npcap manually: https://npcap.com/#download")
 
-    print("Creating log folders...")
+    else:
+        print("⚠ Unsupported OS")
+
+    # =============================
+    # PYTHON DEPENDENCIES
+    # =============================
+
+    print("\n📦 Installing Python dependencies...")
+
+    run_command([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
+    run_command([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+
+    # =============================
+    # CREATE FOLDERS
+    # =============================
+
+    print("\n📁 Creating folders...")
+
     os.makedirs("logs", exist_ok=True)
+    os.makedirs("logs/pcap", exist_ok=True)
 
-    print("✔ Installation completed")
+    print("\n✔ Installation completed successfully!")

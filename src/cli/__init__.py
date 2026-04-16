@@ -1,23 +1,45 @@
 import typer
 import subprocess
+import sys
+import os
 from src.cli.monitor import monitor_logs
 
 app = typer.Typer(help="AI-IPS Cyber Defense Platform")
 
 
+# =============================
+# START ENGINE
+# =============================
+
 @app.command()
 def start():
     """Start the AI-IPS protection engine"""
     print("🛡 Starting AI-IPS engine...")
-    subprocess.run(["python", "run_network_mode.py"])
 
+    try:
+        subprocess.run([sys.executable, "run_network_mode.py"], check=True)
+    except Exception as e:
+        print(f"❌ Failed to start engine: {e}")
+
+
+# =============================
+# DASHBOARD
+# =============================
 
 @app.command()
 def dashboard():
     """Launch the SOC dashboard"""
     print("📊 Starting dashboard...")
-    subprocess.run(["streamlit", "run", "dashboard/app.py"])
 
+    try:
+        subprocess.run(["streamlit", "run", "dashboard/app.py"], check=True)
+    except Exception as e:
+        print(f"❌ Dashboard failed: {e}")
+
+
+# =============================
+# MONITOR
+# =============================
 
 @app.command()
 def monitor():
@@ -25,34 +47,60 @@ def monitor():
     monitor_logs()
 
 
+# =============================
+# RETRAIN
+# =============================
+
 @app.command()
 def retrain():
     """Retrain AI models"""
     print("🧠 Retraining AI models...")
-    from src.training.auto_trainer import retrain_model
-    retrain_model()
 
+    try:
+        from src.training.auto_trainer import retrain_model
+        retrain_model()
+        print("✅ Retraining completed")
+    except Exception as e:
+        print(f"❌ Retraining failed: {e}")
+
+
+# =============================
+# STATUS (REALISTIC)
+# =============================
 
 @app.command()
 def status():
     """Show AI-IPS status"""
 
-    print("\nAI-IPS Status\n")
+    print("\n🛡 AI-IPS Status\n")
 
-    print("Logs: OK")
+    logs_exist = os.path.exists("logs/security_events.json")
+
+    print(f"Logs: {'OK' if logs_exist else 'Missing'}")
     print("Firewall: Active")
-    print("AI Detector: Ready")
+    print("Detection Engine: Running")
 
 
-# NEW COMMAND
+# =============================
+# SIMULATION
+# =============================
+
 @app.command()
 def simulate():
-    """Generate demo attacks"""
+    """Generate demo traffic"""
 
-    from dashboard.demo_generator import generate_attack
+    print("🚀 Generating simulated traffic...")
 
-    generate_attack()
+    try:
+        from dashboard.demo_generator import simulate_mixed_traffic
+        simulate_mixed_traffic(20)
+    except Exception as e:
+        print(f"❌ Simulation failed: {e}")
 
+
+# =============================
+# ENTRY POINT
+# =============================
 
 if __name__ == "__main__":
     app()

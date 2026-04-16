@@ -2,29 +2,36 @@ import json
 import time
 import os
 
-
 LOG_FILE = "logs/security_events.json"
 
 
 def monitor_logs():
 
     print("\n🛡 AI-IPS SOC Monitor")
-    print("=================================================================")
-    print("TIME      SOURCE IP         ATTACK              ACTION")
-    print("=================================================================")
+    print("=" * 70)
+    print(f"{'TIME':<10}{'SOURCE IP':<18}{'ATTACK':<20}{'ACTION'}")
+    print("=" * 70)
 
     last_seen = 0
 
-    while True:
-
-        try:
+    try:
+        while True:
 
             if not os.path.exists(LOG_FILE):
                 time.sleep(1)
                 continue
 
-            with open(LOG_FILE, "r") as f:
-                data = json.load(f)
+            try:
+                with open(LOG_FILE, "r") as f:
+                    data = json.load(f)
+            except Exception:
+                print("⚠ Error reading log file (possibly corrupted)")
+                time.sleep(1)
+                continue
+
+            if not isinstance(data, list):
+                time.sleep(1)
+                continue
 
             if len(data) > last_seen:
 
@@ -32,20 +39,23 @@ def monitor_logs():
 
                 for event in new_events:
 
-                    # show only real security events
-                    if event["event_type"] not in ["WARNING", "BLOCKED"]:
+                    event_type = event.get("event_type", "")
+                    
+                    # show only relevant events
+                    if event_type not in ["WARNING", "BLOCKED"]:
                         continue
 
-                    timestamp = event["timestamp"][11:19]
-                    ip = event["source_ip"]
-                    attack = event["attack_type"]
-                    action = event["event_type"]
+                    timestamp = event.get("timestamp", "")
+                    time_str = timestamp[11:19] if len(timestamp) >= 19 else "N/A"
 
-                    print(f"{timestamp:<9} {ip:<16} {attack:<18} {action}")
+                    ip = event.get("source_ip", "Unknown")
+                    attack = event.get("attack_type", "Unknown")
+
+                    print(f"{time_str:<10}{ip:<18}{attack:<20}{event_type}")
 
                 last_seen = len(data)
 
-        except Exception:
-            pass
+            time.sleep(1)
 
-        time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n🛑 Monitor stopped by user")

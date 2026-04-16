@@ -2,6 +2,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import requests
 
+
 # ======================================
 # GEOLOCATION CACHE
 # ======================================
@@ -9,22 +10,16 @@ import requests
 geo_cache = {}
 
 
-# ======================================
-# GEOLOCATION LOOKUP
-# ======================================
-
 def get_ip_location(ip):
 
     if ip in geo_cache:
         return geo_cache[ip]
 
     try:
-
         r = requests.get(
             f"http://ip-api.com/json/{ip}?fields=country,lat,lon",
             timeout=2
         )
-
         data = r.json()
 
         lat = data.get("lat")
@@ -32,21 +27,18 @@ def get_ip_location(ip):
         country = data.get("country", "Unknown")
 
         if lat and lon:
-
             geo_cache[ip] = (lat, lon, country)
-
             return lat, lon, country
 
     except:
         pass
 
     geo_cache[ip] = (None, None, "Unknown")
-
     return None, None, "Unknown"
 
 
 # ======================================
-# BUILD CYBER ATTACK MAP
+# BUILD ATTACK MAP
 # ======================================
 
 def build_attack_map(df):
@@ -56,21 +48,47 @@ def build_attack_map(df):
 
     attackers = []
 
-    ip_counts = df["source_ip"].value_counts()
+    grouped = df.groupby("source_ip")
 
-    for ip, count in ip_counts.items():
+    for ip, group in grouped:
 
         lat, lon, country = get_ip_location(ip)
 
         if lat is None:
             continue
 
+        count = len(group)
+
+        # =========================
+        # ANOMALY DETECTION
+        # =========================
+
+        has_anomaly = False
+        if "attack_type" in group.columns:
+            has_anomaly = any(group["attack_type"] == "UNKNOWN_THREAT")
+
+        # =========================
+        # SEVERITY LOGIC
+        # =========================
+
+        if has_anomaly:
+            severity = "HIGH"
+            color = "red"
+        elif count > 20:
+            severity = "MEDIUM"
+            color = "orange"
+        else:
+            severity = "LOW"
+            color = "green"
+
         attackers.append({
             "ip": ip,
             "lat": lat,
             "lon": lon,
             "country": country,
-            "count": count
+            "count": count,
+            "color": color,
+            "severity": severity
         })
 
     if not attackers:
@@ -78,28 +96,31 @@ def build_attack_map(df):
 
     map_df = pd.DataFrame(attackers)
 
-    # Target system location (Delhi example)
+    # =========================
+    # TARGET SYSTEM
+    # =========================
+
     target_lat = 28.6139
     target_lon = 77.2090
 
     fig = go.Figure()
 
-    # ==============================
-    # ATTACK SOURCE MARKERS
-    # ==============================
+    # =========================
+    # ATTACK POINTS
+    # =========================
 
     fig.add_trace(go.Scattergeo(
 
         lon=map_df["lon"],
         lat=map_df["lat"],
 
-        text=map_df["ip"] + " (" + map_df["country"] + ")",
+        text=map_df["ip"] + " | " + map_df["severity"],
 
         mode="markers",
 
         marker=dict(
-            size=map_df["count"] * 4 + 6,
-            color="red",
+            size=map_df["count"].clip(1, 20) + 5,
+            color=map_df["color"],
             opacity=0.8
         ),
 
@@ -107,9 +128,9 @@ def build_attack_map(df):
 
     ))
 
-    # ==============================
+    # =========================
     # ATTACK LINES
-    # ==============================
+    # =========================
 
     for _, row in map_df.iterrows():
 
@@ -120,20 +141,16 @@ def build_attack_map(df):
 
             mode="lines",
 
-            line=dict(
-                width=1,
-                color="orange"
-            ),
+            line=dict(width=1, color="orange"),
 
-            opacity=0.6,
+            opacity=0.4,
 
             showlegend=False
-
         ))
 
-    # ==============================
+    # =========================
     # PROTECTED SYSTEM
-    # ==============================
+    # =========================
 
     fig.add_trace(go.Scattergeo(
 
@@ -142,37 +159,27 @@ def build_attack_map(df):
 
         mode="markers",
 
-        marker=dict(
-            size=14,
-            color="cyan"
-        ),
+        marker=dict(size=14, color="cyan"),
 
         name="Protected System"
 
     ))
 
-    # ==============================
-    # MAP STYLE
-    # ==============================
+    # =========================
+    # STYLE
+    # =========================
 
     fig.update_layout(
 
         geo=dict(
-
             showland=True,
-
             landcolor="rgb(25,25,25)",
-
             bgcolor="black",
-
             showocean=True,
-
             oceancolor="rgb(10,10,10)"
-
         ),
 
         template="plotly_dark",
-
         margin=dict(l=0, r=0, t=0, b=0)
 
     )

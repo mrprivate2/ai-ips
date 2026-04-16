@@ -26,108 +26,133 @@ LOG_FILE = BASE_DIR / "logs" / "security_events.json"
 
 st.sidebar.title("🛡 AI-IPS")
 
-st.sidebar.markdown("### System Controls")
+st.sidebar.markdown("### ⚙ Controls")
 
-# Manual refresh button
-if st.sidebar.button("🔄 Refresh Dashboard"):
+if st.sidebar.button("🔄 Refresh"):
     st.rerun()
 
 st.sidebar.divider()
 
-st.sidebar.markdown("### System Status")
-
 # ==============================
-# LOAD EVENTS
+# LOAD EVENTS (SAFE)
 # ==============================
 
-events = []
+def load_events():
+    try:
+        if LOG_FILE.exists():
+            with open(LOG_FILE) as f:
+                return json.load(f)
+    except:
+        pass
+    return []
 
-try:
-    if LOG_FILE.exists():
-        with open(LOG_FILE) as f:
-            events = json.load(f)
-except:
-    events = []
-
+events = load_events()
 total_events = len(events)
 
 # ==============================
-# STATUS INDICATORS
+# SYSTEM STATUS
 # ==============================
+
+st.sidebar.markdown("### 🟢 System Status")
 
 if total_events > 0:
-    st.sidebar.success("AI-IPS Engine: Running")
+    st.sidebar.success("IPS Engine: ACTIVE")
 else:
-    st.sidebar.info("Waiting for events")
+    st.sidebar.warning("IPS Engine: IDLE")
 
-st.sidebar.metric("Total Events Logged", total_events)
+st.sidebar.metric("Total Events", total_events)
 
 # ==============================
-# AI MODEL STATUS
+# ENGINE STATUS (REALISTIC)
 # ==============================
 
 st.sidebar.divider()
-st.sidebar.markdown("### AI Engine")
+st.sidebar.markdown("### 🧠 Detection Engines")
 
-st.sidebar.success("Hybrid AI Detector Active")
-st.sidebar.success("Behavior Engine Active")
-st.sidebar.success("Firewall Protection Enabled")
+st.sidebar.success("Hybrid Detection: Running")
+st.sidebar.success("Behavior Analysis: Running")
+st.sidebar.success("Firewall: Active")
 
 # ==============================
-# MAIN PAGE
+# PROCESS EVENTS
+# ==============================
+
+blocked = 0
+warnings = 0
+unknown = 0
+
+for e in events:
+
+    if e.get("event_type") == "BLOCKED":
+        blocked += 1
+
+    if e.get("event_type") == "WARNING":
+        warnings += 1
+
+    if e.get("attack_type") == "UNKNOWN_THREAT":
+        unknown += 1
+
+# ==============================
+# MAIN HEADER
 # ==============================
 
 st.title("🛡 AI-IPS Security Operations Center")
 
+st.caption("Real-time intrusion detection and prevention system")
+
+# ==============================
+# TOP METRICS
+# ==============================
+
+c1, c2, c3, c4 = st.columns(4)
+
+c1.metric("📊 Total Events", total_events)
+c2.metric("🚫 Blocked", blocked)
+c3.metric("⚠ Warnings", warnings)
+c4.metric("🧠 Unknown Threats", unknown)
+
+st.divider()
+
+# ==============================
+# SYSTEM OVERVIEW
+# ==============================
+
+st.subheader("📡 System Overview")
+
 st.markdown("""
-Welcome to the **AI-IPS Cyber Defense Platform**.
-
-Use the **left sidebar navigation** to explore the system:
-
-### Available Dashboards
+### Available Modules
 
 **📊 Overview**
-- SOC command center
-- Global cyber attack map
-- Threat confidence gauge
-- Network traffic graph
-- Top attackers leaderboard
+- Threat level and traffic monitoring
 
-**📡 Live Threat Feed**
-- Real-time intrusion alerts
-- Source IP tracking
-- Attack types and severity
+**📡 Live Feed**
+- Real-time alerts and IP tracking
 
 **🌍 Threat Intelligence**
-- Global attacker distribution
-- Attack country statistics
+- Attack origin and geographic insights
 
-**📈 Security Analytics**
-- Attack trends
-- Timeline analysis
-- Threat severity distribution
+**📈 Analytics**
+- Attack trends and anomaly spikes
 
-**🧠 AI Training Monitor**
-- Self-learning dataset
-- Model training samples
-- Label distribution
+**🧠 AI Training**
+- Dataset growth and model updates
 """)
 
 st.divider()
 
 # ==============================
-# RECENT EVENTS PREVIEW
+# RECENT EVENTS
 # ==============================
 
-st.subheader("📌 Recent Security Events")
+st.subheader("🚨 Recent Security Events")
 
 if total_events == 0:
 
-    st.info("No security events detected yet. The IPS is actively monitoring network traffic.")
+    st.info("🟢 No threats detected. Monitoring network...")
 
 else:
 
-    latest = events[-5:]
+    latest = events[-10:]
 
     for event in reversed(latest):
 
@@ -135,16 +160,16 @@ else:
         attack = event.get("attack_type", "Unknown")
         event_type = event.get("event_type", "INFO")
 
-        if event_type == "BLOCKED":
+        if attack == "UNKNOWN_THREAT":
+            st.error(f"🧠 ANOMALY DETECTED → {ip}")
 
+        elif event_type == "BLOCKED":
             st.error(f"🚨 BLOCKED {ip} ({attack})")
 
         elif event_type == "WARNING":
-
             st.warning(f"⚠ WARNING {ip} ({attack})")
 
         else:
-
             st.info(f"ℹ EVENT {ip} ({attack})")
 
 # ==============================
@@ -154,5 +179,5 @@ else:
 st.divider()
 
 st.caption(
-    f"AI-IPS Cyber Defense Platform • Running since {datetime.now().strftime('%Y')} • Manual Refresh Enabled"
+    f"AI-IPS • Cyber Defense Platform • {datetime.now().strftime('%Y')}"
 )

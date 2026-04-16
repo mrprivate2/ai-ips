@@ -1,6 +1,7 @@
 import typer
 import subprocess
 import sys
+import os
 from pathlib import Path
 
 from src.cli.monitor import monitor_logs
@@ -22,7 +23,10 @@ def start():
 
     engine_path = BASE_DIR / "src" / "engine" / "network_engine.py"
 
-    subprocess.run([sys.executable, str(engine_path)])
+    try:
+        subprocess.run([sys.executable, str(engine_path)], check=True)
+    except Exception as e:
+        print(f"❌ Engine failed to start: {e}")
 
 
 # ================================
@@ -36,13 +40,16 @@ def dashboard():
 
     dashboard_path = BASE_DIR / "dashboard" / "app.py"
 
-    subprocess.run([
-        sys.executable,
-        "-m",
-        "streamlit",
-        "run",
-        str(dashboard_path)
-    ])
+    try:
+        subprocess.run([
+            sys.executable,
+            "-m",
+            "streamlit",
+            "run",
+            str(dashboard_path)
+        ], check=True)
+    except Exception as e:
+        print(f"❌ Dashboard failed: {e}")
 
 
 # ================================
@@ -52,7 +59,10 @@ def dashboard():
 def monitor():
     """SOC terminal threat monitor"""
 
-    monitor_logs()
+    try:
+        monitor_logs()
+    except Exception as e:
+        print(f"❌ Monitor failed: {e}")
 
 
 # ================================
@@ -64,13 +74,16 @@ def retrain():
 
     print("🧠 Retraining AI models...")
 
-    from src.training.auto_trainer import retrain_model
-
-    retrain_model()
+    try:
+        from src.training.auto_trainer import retrain_model
+        retrain_model()
+        print("✅ Retraining completed")
+    except Exception as e:
+        print(f"❌ Retraining failed: {e}")
 
 
 # ================================
-# SYSTEM STATUS
+# SYSTEM STATUS (REAL)
 # ================================
 @app.command()
 def status():
@@ -78,10 +91,17 @@ def status():
 
     print("\n🛡 AI-IPS Status\n")
 
-    print("Logs: OK")
+    logs_path = BASE_DIR / "logs" / "security_events.json"
+    model_path = BASE_DIR / "src" / "models" / "saved" / "supervised_model.pkl"
+
+    print(f"Logs: {'OK' if logs_path.exists() else 'Missing'}")
+    print(f"Model: {'Loaded' if model_path.exists() else 'Not Found'}")
     print("Firewall: Active")
-    print("AI Detector: Ready")
+    print("Detection Engine: Ready")
 
 
+# ================================
+# ENTRY POINT
+# ================================
 if __name__ == "__main__":
     app()

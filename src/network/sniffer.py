@@ -1,12 +1,30 @@
-from scapy.all import sniff, IP, TCP
+from scapy.all import sniff, IP, TCP, UDP, ICMP
 import numpy as np
+import time
+import ipaddress
 
+
+# ---------------------------------------
+# HELPER: PRIVATE IP CHECK
+# ---------------------------------------
+
+def is_private_ip(ip):
+    try:
+        return ipaddress.ip_address(ip).is_private
+    except:
+        return False
+
+
+# ---------------------------------------
+# PACKET SNIFFER CLASS
+# ---------------------------------------
 
 class PacketSniffer:
 
     def __init__(self, interface="en0"):
-
         self.interface = interface
+        self.last_seen = {}  # track inter-arrival time per IP
+
         print(f"[SNIFFER] Listening on interface: {self.interface}")
 
     # ---------------------------------------
@@ -18,11 +36,12 @@ class PacketSniffer:
         sniff(
             iface=self.interface,
             prn=lambda pkt: self.process_packet(pkt, packet_callback),
-            store=False
+            store=False,
+            filter="ip"
         )
 
     # ---------------------------------------
-    # PROCESS PACKET
+    # PROCESS PACKET (FINAL 🔥)
     # ---------------------------------------
 
     def process_packet(self, packet, callback):
@@ -37,50 +56,108 @@ class PacketSniffer:
             src_ip = ip_layer.src
             dst_ip = ip_layer.dst
 
-            dst_port = 0
-            tcp_flag = ""
+            # ----------------------------
+            # BASIC FEATURES
+            # ----------------------------
+
+            packet_len = len(packet)
+            ttl = int(ip_layer.ttl)
+
+            now = time.time()
+
+            if src_ip in self.last_seen:
+                time_diff = now - self.last_seen[src_ip]
+            else:
+                time_diff = 0.0
+
+            self.last_seen[src_ip] = now
 
             # ----------------------------
-            # TCP extraction
+            # PROTOCOL + FLAGS
             # ----------------------------
+
+            dst_port = 0
+            protocol = 0
+            flag_val = 0
 
             if packet.haslayer(TCP):
-
                 tcp = packet[TCP]
-
+                protocol = 1
                 dst_port = int(tcp.dport)
 
                 flags = str(tcp.flags)
 
-                # detect SYN (scan attempts)
                 if "S" in flags and "A" not in flags:
-                    tcp_flag = "S"
-
-                # SYN+ACK
+                    flag_val = 1
                 elif "S" in flags and "A" in flags:
-                    tcp_flag = "SA"
-
-                # ACK
+                    flag_val = 2
                 elif "A" in flags:
-                    tcp_flag = "A"
-
-                # FIN
+                    flag_val = 3
                 elif "F" in flags:
-                    tcp_flag = "F"
+                    flag_val = 4
+
+            elif packet.haslayer(UDP):
+                udp = packet[UDP]
+                protocol = 2
+                dst_port = int(udp.dport)
+                flag_val = 5
+
+            elif packet.haslayer(ICMP):
+                protocol = 3
+                flag_val = 6
 
             # ----------------------------
-            # Feature extraction
+            # NORMALIZATION
             # ----------------------------
 
-            packet_len = len(packet)
+            packet_len_norm = min(packet_len / 1500, 1.0)
+            ttl_norm = ttl / 255
+            port_norm = dst_port / 65535
+            time_norm = min(time_diff, 1.0)
+
+            protocol_norm = protocol / 3
+            flag_norm = flag_val / 6
+
+            # ----------------------------
+            # ADVANCED FEATURES
+            # ----------------------------
+
+            burst = 1 if time_diff < 0.05 else 0
+
+            well_known_ports = {
+                80, 443, 53, 22, 21, 25,
+                110, 143, 3306, 3389, 8080
+            }
+
+            if dst_port in well_known_ports:
+                port_risk = 0
+            elif dst_port < 1024:
+                port_risk = 0.3
+            elif dst_port < 49152:
+                port_risk = 0.6
+            else:
+                port_risk = 1.0
+
+            is_external = 0 if is_private_ip(src_ip) else 1
+
+            # ----------------------------
+            # FINAL FEATURE VECTOR
+            # ----------------------------
 
             features = np.array([
-                packet_len,
-                dst_port
+                packet_len_norm,
+                port_norm,
+                ttl_norm,
+                protocol_norm,
+                flag_norm,
+                time_norm,
+                burst,
+                port_risk,
+                is_external
             ])
 
             # ----------------------------
-            # Send to IPS engine
+            # CALLBACK
             # ----------------------------
 
             callback(
@@ -88,9 +165,9 @@ class PacketSniffer:
                 src_ip,
                 dst_ip,
                 dst_port,
-                tcp_flag
+                flag_val,
+                packet
             )
 
-        except Exception:
-            # IPS must never crash due to packet parsing
-            pass
+        except Exception as e:
+            print("Sniffer error:", e)

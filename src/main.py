@@ -2,6 +2,10 @@ import sys
 import subprocess
 
 
+# ---------------------------------------
+# START IPS ENGINE
+# ---------------------------------------
+
 def start_ips():
 
     print("\n🛡 Starting AI-IPS engine...\n")
@@ -9,50 +13,82 @@ def start_ips():
     try:
 
         subprocess.run(
-            ["python", "run_network_mode.py"],
+            [sys.executable, "run_network_mode.py"],  # ✅ FIXED
             check=True
         )
 
     except KeyboardInterrupt:
-
         print("\n🛑 AI-IPS stopped by user")
 
+    except Exception as e:
+        print(f"❌ Failed to start IPS: {e}")
+
+
+# ---------------------------------------
+# START DASHBOARD
+# ---------------------------------------
 
 def start_dashboard():
 
     print("\n📊 Starting AI-IPS dashboard...\n")
 
-    subprocess.run(
-        ["streamlit", "run", "dashboard/app.py"]
-    )
+    try:
 
+        subprocess.run(
+            [sys.executable, "-m", "streamlit", "run", "dashboard/app.py"],  # ✅ FIXED
+            check=True
+        )
+
+    except Exception as e:
+        print(f"❌ Dashboard error: {e}")
+
+
+# ---------------------------------------
+# MONITOR LOGS
+# ---------------------------------------
 
 def monitor():
 
     print("\n🛡 Starting SOC monitor...\n")
 
-    from src.cli.monitor import monitor_logs
+    try:
+        from src.cli.monitor import monitor_logs
+        monitor_logs()
+    except Exception as e:
+        print(f"❌ Monitor error: {e}")
 
-    monitor_logs()
 
+# ---------------------------------------
+# STATUS
+# ---------------------------------------
 
 def status():
 
-    print("\nAI-IPS Status\n")
+    print("\n📊 AI-IPS Status\n")
 
-    print("Logs: OK")
-    print("Firewall: Active")
-    print("AI Detector: Ready")
+    print("✔ Logs: OK")
+    print("✔ Firewall: Active")
+    print("✔ AI Detector: Ready")
 
+
+# ---------------------------------------
+# RETRAIN MODEL
+# ---------------------------------------
 
 def retrain():
 
     print("\n🧠 Starting AI model retraining...\n")
 
-    from src.training.auto_trainer import retrain_model
+    try:
+        from src.training.auto_trainer import retrain_model
+        retrain_model()
+    except Exception as e:
+        print(f"❌ Retraining error: {e}")
 
-    retrain_model()
 
+# ---------------------------------------
+# MAIN CLI
+# ---------------------------------------
 
 def main():
 
@@ -60,21 +96,20 @@ def main():
 
         print(
             """
-AI-IPS CLI
+🛡 AI-IPS CLI
 
 Commands:
 
-ai-ips start
-ai-ips dashboard
-ai-ips monitor
-ai-ips retrain
-ai-ips status
+ai-ips start       → Start intrusion prevention system
+ai-ips dashboard   → Launch dashboard
+ai-ips monitor     → Monitor logs (SOC view)
+ai-ips retrain     → Retrain AI model
+ai-ips status      → Show system status
 """
         )
-
         return
 
-    command = sys.argv[1]
+    command = sys.argv[1].lower()
 
     if command == "start":
         start_ips()
@@ -92,7 +127,7 @@ ai-ips status
         status()
 
     else:
-        print("Unknown command")
+        print(f"❌ Unknown command: {command}")
 
 
 if __name__ == "__main__":

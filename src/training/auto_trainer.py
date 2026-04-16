@@ -2,6 +2,9 @@ import pandas as pd
 import joblib
 from pathlib import Path
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import StandardScaler
 
 
 # =============================
@@ -12,6 +15,7 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 
 DATASET_PATH = BASE_DIR / "logs" / "live_training_data.csv"
 MODEL_PATH = BASE_DIR / "src/models/saved/supervised_model.pkl"
+SCALER_PATH = BASE_DIR / "src/models/saved/scaler.pkl"
 
 
 # =============================
@@ -23,16 +27,12 @@ def retrain_model():
     print("🧠 Retraining AI models...")
 
     # -----------------------------
-    # CHECK DATASET EXISTS
+    # LOAD DATASET
     # -----------------------------
 
     if not DATASET_PATH.exists():
         print("⚠ Dataset not found:", DATASET_PATH)
         return
-
-    # -----------------------------
-    # LOAD DATASET
-    # -----------------------------
 
     try:
         df = pd.read_csv(DATASET_PATH)
@@ -41,82 +41,119 @@ def retrain_model():
         return
 
     if df.empty:
-        print("⚠ Dataset is empty. Skipping training.")
+        print("⚠ Dataset is empty.")
         return
 
     print(f"📊 Raw samples: {len(df)}")
 
     # -----------------------------
-    # REMOVE TIMESTAMP COLUMN
+    # CLEAN DATA
     # -----------------------------
 
     if "timestamp" in df.columns:
         df = df.drop(columns=["timestamp"])
 
-    # -----------------------------
-    # REMOVE ROWS WITH MISSING LABEL
-    # -----------------------------
-
     if "label" not in df.columns:
-        print("⚠ Dataset missing 'label' column.")
+        print("⚠ Missing label column")
         return
 
-    df = df.dropna(subset=["label"])
-
-    # -----------------------------
-    # REMOVE OTHER NaN ROWS
-    # -----------------------------
-
     df = df.dropna()
-
-    # -----------------------------
-    # SPLIT FEATURES / LABEL
-    # -----------------------------
 
     X = df.drop(columns=["label"])
     y = df["label"]
 
-    # keep numeric columns only
     X = X.select_dtypes(include=["number"])
 
-    print(f"🧪 Clean training samples: {len(X)}")
+    print(f"🧪 Clean samples: {len(X)}")
 
-    # -----------------------------
-    # MINIMUM DATA CHECK
-    # -----------------------------
-
-    if len(X) < 10:
-        print("⚠ Not enough samples to train model (need at least 10).")
+    if len(X) < 20:
+        print("⚠ Not enough data")
         return
 
     # -----------------------------
-    # TRAIN MODEL
+    # TRAIN / TEST SPLIT
     # -----------------------------
 
-    print("⚙ Training RandomForest model...")
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+
+    # -----------------------------
+    # SCALING
+    # -----------------------------
+
+    scaler = StandardScaler()
+
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    # -----------------------------
+    # MODEL (BALANCED)
+    # -----------------------------
 
     model = RandomForestClassifier(
-        n_estimators=150,
-        max_depth=10,
+        n_estimators=200,
+        max_depth=12,
+        class_weight="balanced",   # 🔥 important
         random_state=42,
         n_jobs=-1
     )
 
+    # -----------------------------
+    # TRAIN
+    # -----------------------------
+
+    print("⚙ Training model...")
+
     try:
-        model.fit(X, y)
+        model.fit(X_train_scaled, y_train)
     except Exception as e:
         print("❌ Training failed:", e)
         return
 
     # -----------------------------
-    # SAVE MODEL
+    # EVALUATION
+    # -----------------------------
+
+    y_pred = model.predict(X_test_scaled)
+    acc = accuracy_score(y_test, y_pred)
+
+    print(f"📈 Model Accuracy: {acc:.2f}")
+
+    # -----------------------------
+    # FEATURE IMPORTANCE (🔥 BIG)
+    # -----------------------------
+
+    try:
+        importance = model.feature_importances_
+        feature_names = X.columns
+
+        top_features = sorted(
+            zip(feature_names, importance),
+            key=lambda x: x[1],
+            reverse=True
+        )[:5]
+
+        print("🔬 Top Features:")
+        for name, score in top_features:
+            print(f"   {name}: {score:.3f}")
+
+    except Exception:
+        pass
+
+    # -----------------------------
+    # SAVE MODEL + SCALER
     # -----------------------------
 
     try:
         joblib.dump(model, MODEL_PATH)
-        print("✅ Model saved to:", MODEL_PATH)
+        joblib.dump(scaler, SCALER_PATH)
+
+        print("✅ Model saved:", MODEL_PATH)
+        print("✅ Scaler saved:", SCALER_PATH)
+
     except Exception as e:
-        print("❌ Failed to save model:", e)
+        print("❌ Save failed:", e)
         return
 
-    print("🚀 AI model retrained successfully.")
+    print("🚀 Retraining complete")

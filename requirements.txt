@@ -1,23 +1,24 @@
+# Core Networking & System
 scapy
+psutil
+
+# Data & ML
 numpy
 pandas
 scikit-learn
+scipy
 joblib
-streamlit
-plotly
-requests
-psutil
+
+# API & Backend
 fastapi
 uvicorn
 
-# dashboard & UI helpers
+# Dashboard & Visualization
+streamlit
+plotly
 watchdog
 
-# ML utilities
-scipy
-
-# data processing
+# Utilities
+requests
 python-dateutil
-
-# optional but useful
 tqdm
