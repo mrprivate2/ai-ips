@@ -1,9 +1,15 @@
+import sys
 import streamlit as st
 import pandas as pd
 import json
 import pathlib
 import plotly.graph_objects as go
 import plotly.express as px
+
+# Ensure dashboard/ is on sys.path so utils imports work from any CWD
+_DASHBOARD_DIR = str(pathlib.Path(__file__).resolve().parent.parent)
+if _DASHBOARD_DIR not in sys.path:
+    sys.path.insert(0, _DASHBOARD_DIR)
 
 from utils.packet_rate import packet_rate_graph
 from utils.threat_map import build_attack_map
@@ -18,7 +24,7 @@ st.set_page_config(layout="wide", page_title="AI-IPS SOC Dashboard")
 st.title("🛡 AI-IPS Security Operations Center")
 
 BASE_DIR = pathlib.Path(__file__).resolve().parents[2]
-LOG_FILE = BASE_DIR / "logs" / "security_events.json"
+LOG_FILE = BASE_DIR / "logs" / "security_events.jsonl"
 
 
 # =============================
@@ -26,13 +32,16 @@ LOG_FILE = BASE_DIR / "logs" / "security_events.json"
 # =============================
 
 def load_events():
+    events = []
     try:
         if LOG_FILE.exists():
             with open(LOG_FILE) as f:
-                return json.load(f)
-    except:
-        pass
-    return []
+                for line in f:
+                    if line.strip():
+                        events.append(json.loads(line))
+    except Exception as e:
+        st.error(f"Error loading logs: {e}")
+    return events
 
 
 events = load_events()

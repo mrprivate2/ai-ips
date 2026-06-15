@@ -26,20 +26,29 @@ def get_feature_importance(features):
         importance = {}
 
         # =============================
-        # BASIC HEURISTICS
+        # MAPPED HEURISTICS (matching sniffer.py)
         # =============================
+        # 0: packet_len_norm
+        # 1: port_norm
+        # 2: ttl_norm
+        # 3: protocol_norm
+        # 4: flag_norm
+        # 5: time_norm
+        # 6: burst
+        # 7: port_risk
+        # 8: is_external
 
-        # Feature 0 → traffic intensity
         if len(features) > 0:
-            importance["traffic_intensity"] = float(features[0])
+            importance["packet_length"] = float(features[0])
 
-        # Feature 1 → connection rate
         if len(features) > 1:
-            importance["connection_rate"] = float(features[1])
+            importance["destination_port"] = float(features[1])
 
-        # Feature 2 → irregular behavior
-        if len(features) > 2:
-            importance["pattern_irregularity"] = float(features[2])
+        if len(features) > 5:
+            importance["inter_arrival_time"] = float(features[5])
+
+        if len(features) > 7:
+            importance["port_risk"] = float(features[7])
 
         # =============================
         # TOP FEATURES
@@ -64,7 +73,8 @@ def get_feature_importance(features):
 
 def explain_features(features):
     """
-    Convert features into readable explanation
+    Convert features into readable explanation based on sniffer.py vector:
+    [packet_len, port, ttl, protocol, flag, time_diff, burst, port_risk, is_external]
     """
 
     reasons = []
@@ -74,20 +84,38 @@ def explain_features(features):
 
     try:
 
+        # f0: packet_len_norm
         if len(features) > 0 and features[0] > 0.8:
-            reasons.append("High traffic intensity")
+            reasons.append("Abnormally large packet size")
 
-        if len(features) > 1 and features[1] > 0.7:
-            reasons.append("Excessive connection attempts")
+        # f1: port_norm (not very useful for reason alone without port_risk)
+        
+        # f2: ttl_norm
+        if len(features) > 2 and (features[2] < 0.2 or features[2] > 0.9):
+            reasons.append("Suspicious TTL value")
 
-        if len(features) > 2 and 0.3 < features[2] < 0.8:
-            reasons.append("Irregular traffic pattern")
+        # f4: flag_norm
+        if len(features) > 4 and features[4] < 0.2: # Likely SYN
+            reasons.append("Connection request (SYN) spike")
 
-        if len(features) > 3 and features[3] > 0.85:
-            reasons.append("Abnormal packet distribution")
+        # f5: time_norm (inter-arrival time)
+        if len(features) > 5 and features[5] < 0.05:
+            reasons.append("High-frequency traffic burst")
+
+        # f6: burst
+        if len(features) > 6 and features[6] == 1:
+            reasons.append("Packet burst detected")
+
+        # f7: port_risk
+        if len(features) > 7 and features[7] > 0.7:
+            reasons.append("Accessing high-risk/uncommon port")
+
+        # f8: is_external
+        if len(features) > 8 and features[8] == 1:
+            reasons.append("External source IP")
 
         if not reasons:
-            reasons.append("No strong anomaly indicators")
+            reasons.append("Heuristic check: No obvious flags (AI model detection only)")
 
         return reasons
 

@@ -1,83 +1,58 @@
-Here are the exact minimal commands to run your AI-IPS (clean + ready for demo) 👇
+#!/bin/bash
 
-⸻
+# AI-IPS Quick Start Script
 
-🚀 1. Go to Project Folder
+# Get current directory
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$DIR"
 
-cd ai-ips
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
 
+echo -e "${GREEN}🛡 AI-IPS Cyber Defense Platform${NC}"
+echo "======================================"
 
-⸻
+# Check if setup is needed
+if [ ! -d "logs" ] || [ ! -f "configs/app_config.json" ]; then
+    echo -e "${GREEN}Running initial setup...${NC}"
+    python3 -m pip install -e .
+    ai-ips setup
+fi
 
-🧪 2. Activate Virtual Environment
+# Function to show help
+show_help() {
+    echo "Usage: ./run.sh [command]"
+    echo ""
+    echo "Commands:"
+    echo "  start     Start the IPS engine (requires sudo)"
+    echo "  monitor   Start the SOC terminal monitor"
+    echo "  dashboard Launch the web dashboard"
+    echo "  status    Show system status"
+    echo "  setup     Run environment setup"
+}
 
-source venv/bin/activate
-
-
-⸻
-
-🛡 3. Start IPS Engine (MAIN)
-
-sudo ai-ips start
-
-
-⸻
-
-📊 4. Open Monitor (New Terminal)
-
-cd ai-ips
-source venv/bin/activate
-ai-ips monitor
-
-
-⸻
-
-🌐 5. Open Dashboard (Optional)
-
-cd ai-ips
-source venv/bin/activate
-ai-ips dashboard
-
-Open in browser:
-
-http://localhost:8501
-
-
-⸻
-
-⚔️ 6. Test Attack (from Kali / another machine)
-
-nmap -sS -T5 -Pn <your-ip>
-
-Example:
-
-nmap -sS -T5 -Pn 172.20.8.31
-
-
-⸻
-
-🛑 7. Stop IPS
-
-Press:
-
-CTRL + C
-
-
-⸻
-
-✅ Fast Demo Flow (for teacher)
-
-Just run:
-
-sudo ai-ips start
-
-Then:
-
-ai-ips monitor
-
-Then run attack → show:
-
-[BLOCKED] IP — PORT_SCAN / AI_ANOMALY
-
-
-⸻
+case "$1" in
+    start)
+        echo -e "${GREEN}Starting Engine...${NC}"
+        sudo ai-ips start
+        ;;
+    monitor)
+        echo -e "${GREEN}Starting Monitor...${NC}"
+        ai-ips monitor
+        ;;
+    dashboard)
+        echo -e "${GREEN}Starting Dashboard...${NC}"
+        ai-ips dashboard
+        ;;
+    status)
+        ai-ips status
+        ;;
+    setup)
+        ai-ips setup
+        ;;
+    *)
+        show_help
+        ;;
+esac

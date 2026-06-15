@@ -1,0 +1,8 @@
+{
+  "network_interface": "en0",
+  "whitelist": ["127.", "192.168.", "10.", "172.", "17.", "142.", "20.", "52.", "74.", "185.158."],
+  "debug": true,
+  "block_ttl": 120,
+  "log_file": "logs/security_events.jsonl",
+  "blacklist_file": "logs/blacklist.txt"
+}

@@ -26,10 +26,15 @@ def init_firebase():
             print("[FIREBASE] Key not found → running in offline mode")
             return None
 
+        database_url = os.environ.get("FIREBASE_DATABASE_URL", "")
+        if not database_url:
+            print("[FIREBASE] FIREBASE_DATABASE_URL not set → running in offline mode")
+            return None
+
         cred = credentials.Certificate(key_path)
 
         firebase_admin.initialize_app(cred, {
-            "databaseURL": "https://ai-ips-3d2a0-default-rtdb.asia-southeast1.firebasedatabase.app"
+            "databaseURL": database_url
         })
 
         _ref = db.reference("threats")
@@ -56,8 +61,10 @@ def push_attack(ip, attack_type, score):
         return
 
     try:
+        # 🔥 Firebase keys cannot contain '.'
+        sanitized_ip = ip.replace(".", "_")
 
-        ref.child(ip).set({
+        ref.child(sanitized_ip).set({
             "score": score,
             "attack_type": attack_type,
             "timestamp": int(time.time())
@@ -73,47 +80,40 @@ def push_attack(ip, attack_type, score):
 
 def start_listener(firewall, blacklist):
 
-    ref = init_firebase()
+    try:
+        ref = init_firebase()
 
-    if ref is None:
-        print("[FIREBASE] Listener disabled (no connection)")
-        return
+        if ref is None:
+            print("[FIREBASE] Listener disabled (no connection)")
+            return
 
-    print("[FIREBASE] Global sync listener started")
+        print("[FIREBASE] Global sync listener started")
 
-    def listener(event):
+        def listener(event):
+            try:
+                # 🔥 Convert back from sanitized IP
+                ip_raw = event.path.strip("/")
+                if not ip_raw: return
+                
+                ip = ip_raw.replace("_", ".")
+                
+                data = event.data
+                if not isinstance(data, dict): return
 
-        try:
+                score = data.get("score", 0)
+                attack_type = data.get("attack_type", "GLOBAL_THREAT")
 
-            ip = event.path.strip("/")
+                if score >= 5 and not blacklist.is_blacklisted(ip):
+                    print(f"[GLOBAL BLOCK] {ip} — {attack_type} (score={score})")
+                    firewall.block_ip(ip)
+                    blacklist.add_ip(ip, reason=f"GLOBAL:{attack_type}", score=score / 10.0)
 
-            if not ip:
-                return
+            except Exception as e:
+                print("[FIREBASE] Listener logic error:", e)
 
-            data = event.data
+        # Establish SSE connection (blocks until connected or fails)
+        ref.listen(listener)
 
-            if not isinstance(data, dict):
-                return
-
-            score = data.get("score", 0)
-            attack_type = data.get("attack_type", "GLOBAL_THREAT")
-
-            # 🔥 Only block high-confidence threats
-            if score >= 5 and not blacklist.is_blacklisted(ip):
-
-                print(f"[GLOBAL BLOCK] {ip} — {attack_type} (score={score})")
-
-                firewall.block_ip(ip)
-
-                # 🔥 store reason + score
-                blacklist.add_ip(
-                    ip,
-                    reason=f"GLOBAL:{attack_type}",
-                    score=score / 10.0
-                )
-
-        except Exception as e:
-            print("[FIREBASE] Listener error:", e)
-
-    # 🔥 run listener
-    ref.listen(listener)
+    except Exception as e:
+        print(f"⚠️  [FIREBASE] Connection failed: {e}")
+        print("💡 Running in local-only mode. (Check your internet or Firebase config)")

@@ -1,24 +1,28 @@
 # Core Networking & System
-scapy
-psutil
+scapy>=2.5.0
+psutil>=5.9.0
 
 # Data & ML
-numpy
-pandas
-scikit-learn
-scipy
-joblib
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+scipy>=1.11.0
+joblib>=1.3.0
 
 # API & Backend
-fastapi
-uvicorn
+fastapi>=0.110.0
+uvicorn>=0.27.0
+
+# CLI
+typer>=0.9.0
 
 # Dashboard & Visualization
-streamlit
-plotly
-watchdog
+streamlit>=1.30.0
+plotly>=5.18.0
+watchdog>=3.0.0
 
 # Utilities
-requests
-python-dateutil
-tqdm
+requests>=2.31.0
+python-dateutil>=2.8.0
+tqdm>=4.65.0
+firebase-admin>=6.0.0

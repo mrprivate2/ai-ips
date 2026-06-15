@@ -5,6 +5,7 @@ import numpy as np
 import time
 from pathlib import Path
 import threading
+import os
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 sys.path.append(str(BASE_DIR))
@@ -25,14 +26,37 @@ from src.sync.global_threat_sync import push_attack, start_listener
 
 
 # =============================
-# SETTINGS
+# LOAD CONFIGS
 # =============================
 
-DEBUG = True
+def load_json(path):
+    with open(path) as f:
+        return json.load(f)
 
-WHITELIST = ["127.", "192.168.", "10.", "172."]
-NETWORK_INTERFACE = "en0"
+app_config_path = BASE_DIR / "configs" / "app_config.json"
+model_config_path = BASE_DIR / "configs" / "model_config.json"
 
+app_config = load_json(app_config_path)
+model_config = load_json(model_config_path)
+
+# =============================
+# VALIDATE CONFIGS
+# =============================
+
+from src.utils.config_validator import validate_model_config, validate_app_config, validate_thresholds
+
+if not validate_app_config(app_config):
+    sys.exit(1)
+
+if not validate_model_config(model_config):
+    sys.exit(1)
+
+validate_thresholds(model_config)
+
+DEBUG = app_config.get("debug", True)
+WHITELIST = app_config.get("whitelist", ["127.", "192.168.", "10.", "172."])
+NETWORK_INTERFACE = app_config.get("network_interface", "en0")
+BLOCK_TTL = app_config.get("block_ttl", 120)
 
 # =============================
 # GET LOCAL IP
@@ -43,37 +67,27 @@ def get_local_ip():
     try:
         s.connect(("8.8.8.8", 80))
         return s.getsockname()[0]
+    except:
+        return "127.0.0.1"
     finally:
         s.close()
 
-
 LOCAL_IP = get_local_ip()
-
-
-# =============================
-# LOAD CONFIG
-# =============================
-
-config_path = BASE_DIR / "configs" / "model_config.json"
-
-with open(config_path) as f:
-    config = json.load(f)
-
 
 # =============================
 # INIT COMPONENTS
 # =============================
 
 detector = HybridDetector(
-    config["supervised_model_path"],
-    config["unsupervised_model_path"],
-    config
+    model_config["supervised_model_path"],
+    model_config["unsupervised_model_path"],
+    model_config
 )
 
 behavior_engine = BehaviorEngine()
 firewall = FirewallManager()
 
-blacklist = BlacklistManager(BASE_DIR / "logs" / "blacklist.txt")
+blacklist = BlacklistManager(str(BASE_DIR / app_config.get("blacklist_file", "logs/blacklist.txt")))
 security_logger = SecurityLogger()
 
 
@@ -99,20 +113,25 @@ print(f"[AUTO] Interface: {NETWORK_INTERFACE}\n")
 
 last_log_time = 0
 last_training_check = time.time()
+last_cleanup_time = time.time()
 
 recent_blocks = {}
-BLOCK_TTL = 120
-
 
 def cleanup_blocks():
+    global last_cleanup_time
     now = time.time()
+    if now - last_cleanup_time < 10:  # Throttle cleanup
+        return
+        
     for ip in list(recent_blocks.keys()):
         if now - recent_blocks[ip] > BLOCK_TTL:
             recent_blocks.pop(ip, None)
+    
+    last_cleanup_time = now
 
 
 # =============================
-# PACKET HANDLER (FINAL FIXED 🔥)
+# PACKET HANDLER
 # =============================
 
 def handle_packet(features, src_ip, dst_ip, dst_port, tcp_flag, packet):
@@ -120,7 +139,6 @@ def handle_packet(features, src_ip, dst_ip, dst_port, tcp_flag, packet):
     global last_log_time, last_training_check
 
     try:
-
         # ✅ SAFE CHECK
         if features is None or len(features) == 0:
             return
@@ -139,14 +157,14 @@ def handle_packet(features, src_ip, dst_ip, dst_port, tcp_flag, packet):
             return
 
         if DEBUG:
-            print(f"[DEBUG] {src_ip} → {dst_ip} | Port {dst_port} | Flag {tcp_flag}")
+            # Throttle debug prints to avoid flooding
+            if time.time() - last_log_time > 0.1:
+                print(f"[DEBUG] {src_ip} → {dst_ip} | Port {dst_port} | Flag {tcp_flag}")
 
         try:
             dst_port = int(dst_port)
         except:
             dst_port = 0
-
-        tcp_flag = str(tcp_flag)
 
         # =============================
         # BEHAVIOR ANALYSIS
@@ -157,20 +175,15 @@ def handle_packet(features, src_ip, dst_ip, dst_port, tcp_flag, packet):
         behavior_type = behavior.get("attack_type", "NORMAL")
 
         # =============================
-        # AI ANALYSIS (🔥 FIXED)
+        # AI ANALYSIS (FIXED FEATURE MATCH)
         # =============================
 
         ai_risk = 0.0
         ai_type = "NORMAL"
 
         try:
-            # ✅ MATCH TRAINING FEATURES (VERY IMPORTANT)
-            simple_features = np.array([
-                len(packet),
-                dst_port
-            ])
-
-            result = detector.detect(simple_features)
+            # ✅ Pass all features from sniffer to detector
+            result = detector.detect(features)
 
             ai_risk = result.get("final_threat_score", 0.0)
             ai_type = result.get("attack_type", "NORMAL")
@@ -186,20 +199,17 @@ def handle_packet(features, src_ip, dst_ip, dst_port, tcp_flag, packet):
         final_risk = max(behavioral_risk, ai_risk)
         attack_type = behavior_type if behavioral_risk >= ai_risk else ai_type
 
-        # 🔥 DEBUG RISK PRINT (IMPORTANT)
-        if DEBUG:
-            print(f"[RISK] AI={ai_risk:.2f} BEHAVIOR={behavioral_risk:.2f} FINAL={final_risk:.2f}")
-
         # =============================
-        # SELF LEARNING
+        # SELF LEARNING (Throttled)
         # =============================
 
-        try:
-            save_sample(features, attack_type)
-        except:
-            pass
+        if final_risk > 0.3 or np.random.random() < 0.05: # Save interesting samples or 5% of normal
+            try:
+                save_sample(features, attack_type)
+            except:
+                pass
 
-        if time.time() - last_training_check > 30:
+        if time.time() - last_training_check > 300: # Check every 5 mins
             try:
                 check_retraining()
             except:
@@ -212,7 +222,7 @@ def handle_packet(features, src_ip, dst_ip, dst_port, tcp_flag, packet):
         # BLOCKING LOGIC
         # =============================
 
-        if final_risk >= 0.65:
+        if final_risk >= model_config.get("block_threshold", 0.65):
 
             if src_ip in recent_blocks:
                 return
@@ -221,13 +231,13 @@ def handle_packet(features, src_ip, dst_ip, dst_port, tcp_flag, packet):
 
             explanation = explain_attack(features, attack_type)
 
-            print(f"[BLOCKED] {src_ip} — {attack_type}")
+            print(f"🚫 [BLOCKED] {src_ip} — {attack_type} (Risk: {final_risk:.2f})")
 
             if explanation:
-                print("Reason:", explanation)
+                print("   Reason:", explanation)
 
             firewall.block_ip(src_ip)
-            blacklist.add_ip(src_ip)
+            blacklist.add_ip(src_ip, reason=attack_type, score=final_risk)
 
             try:
                 push_attack(src_ip, attack_type, int(final_risk * 10))
@@ -238,26 +248,28 @@ def handle_packet(features, src_ip, dst_ip, dst_port, tcp_flag, packet):
                 "BLOCKED",
                 src_ip,
                 "HIGH",
-                attack_type
+                attack_type,
+                reasons=[explanation] if explanation else []
             )
 
-        elif final_risk >= 0.40:
+        elif final_risk >= model_config.get("warning_threshold", 0.40):
 
             now = time.time()
 
-            if now - last_log_time > 1:
-                print(f"[WARNING] {src_ip} — {attack_type}")
+            if now - last_log_time > 2: # Warning throttle
+                print(f"⚠️ [WARNING] {src_ip} — {attack_type} (Risk: {final_risk:.2f})")
                 last_log_time = now
 
-            security_logger.log_event(
-                "WARNING",
-                src_ip,
-                "MEDIUM",
-                attack_type
-            )
+                security_logger.log_event(
+                    "WARNING",
+                    src_ip,
+                    "MEDIUM",
+                    attack_type
+                )
 
     except Exception as e:
-        print("Packet processing error:", e)
+        if DEBUG:
+            print("Packet processing error:", e)
 
 
 # =============================
@@ -284,6 +296,10 @@ def start_sniffer():
 # =============================
 
 if __name__ == "__main__":
+    
+    if os.getuid() != 0:
+        print("❌ AI-IPS requires root privileges. Please run with sudo.")
+        sys.exit(1)
 
     try:
         start_sniffer()

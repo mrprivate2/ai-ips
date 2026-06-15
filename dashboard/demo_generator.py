@@ -33,23 +33,31 @@ def generate_ip():
 # LOAD LOG FILE
 # =============================
 
+LOG_FILE = "logs/security_events.jsonl"
+
+
 def load_log():
 
     os.makedirs("logs", exist_ok=True)
-    log_file = "logs/security_events.json"
+    events = []
 
-    if not os.path.exists(log_file):
-        with open(log_file, "w") as f:
-            json.dump([], f)
+    if os.path.exists(LOG_FILE):
+        try:
+            with open(LOG_FILE, "r") as f:
+                for line in f:
+                    if line.strip():
+                        events.append(json.loads(line))
+        except Exception:
+            pass
 
-    with open(log_file, "r") as f:
-        return json.load(f)
+    return events
 
 
 def save_log(data):
 
-    with open("logs/security_events.json", "w") as f:
-        json.dump(data, f, indent=2)
+    with open(LOG_FILE, "w") as f:
+        for event in data:
+            f.write(json.dumps(event) + "\n")
 
 
 # =============================

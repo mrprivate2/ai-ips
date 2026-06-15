@@ -2,7 +2,9 @@ import os
 import subprocess
 import platform
 import sys
+from pathlib import Path
 
+BASE_DIR = Path(__file__).resolve().parents[2]
 
 def run_command(cmd):
     try:
@@ -16,7 +18,7 @@ def run_command(cmd):
 
 def install_system():
 
-    print("🛡 Installing AI-IPS dependencies...\n")
+    print("🛡  Verifying AI-IPS system dependencies...\n")
 
     system = platform.system()
 
@@ -24,42 +26,50 @@ def install_system():
     # SYSTEM DEPENDENCIES
     # =============================
 
-    print("🔧 Installing system tools...")
+    print("🔧 Checking system tools...")
 
     if system == "Linux":
-        run_command(["sudo", "apt", "update"])
-        run_command(["sudo", "apt", "install", "tcpdump", "-y"])
+        if subprocess.call(["which", "tcpdump"], stdout=subprocess.DEVNULL) != 0:
+            print("📦 Installing tcpdump...")
+            run_command(["sudo", "apt", "update"])
+            run_command(["sudo", "apt", "install", "tcpdump", "-y"])
+        else:
+            print("✅ tcpdump already installed")
 
     elif system == "Darwin":
-        # check if brew exists
-        if subprocess.call(["which", "brew"], stdout=subprocess.DEVNULL) == 0:
-            run_command(["brew", "install", "tcpdump"])
+        if subprocess.call(["which", "tcpdump"], stdout=subprocess.DEVNULL) != 0:
+            # check if brew exists
+            if subprocess.call(["which", "brew"], stdout=subprocess.DEVNULL) == 0:
+                print("📦 Installing tcpdump via Homebrew...")
+                run_command(["brew", "install", "tcpdump"])
+            else:
+                print("⚠️  Homebrew not found. Please install tcpdump manually if needed.")
         else:
-            print("⚠ Homebrew not found. Install it first: https://brew.sh")
+            print("✅ tcpdump already installed")
 
     elif system == "Windows":
-        print("⚠ Windows detected")
-        print("Install Npcap manually: https://npcap.com/#download")
-
-    else:
-        print("⚠ Unsupported OS")
+        print("⚠️  Windows detected. Ensure Npcap is installed: https://npcap.com/#download")
 
     # =============================
     # PYTHON DEPENDENCIES
     # =============================
 
-    print("\n📦 Installing Python dependencies...")
+    print("\n📦 Verifying Python dependencies...")
 
-    run_command([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
-    run_command([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+    req_path = BASE_DIR / "requirements.txt"
+    if req_path.exists():
+        run_command([sys.executable, "-m", "pip", "install", "-r", str(req_path)])
+    else:
+        print("⚠️  requirements.txt not found in root directory.")
 
     # =============================
     # CREATE FOLDERS
     # =============================
 
-    print("\n📁 Creating folders...")
+    print("\n📁 Ensuring directories exist...")
 
-    os.makedirs("logs", exist_ok=True)
-    os.makedirs("logs/pcap", exist_ok=True)
+    os.makedirs(BASE_DIR / "logs", exist_ok=True)
+    os.makedirs(BASE_DIR / "logs/pcap", exist_ok=True)
+    os.makedirs(BASE_DIR / "src/models/saved", exist_ok=True)
 
-    print("\n✔ Installation completed successfully!")
+    print("\n✅ System check completed!")

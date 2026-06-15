@@ -23,10 +23,15 @@ setup(
         "requests>=2.31.0",
         "psutil>=5.9.0",
         "scikit-learn>=1.3.0",
+        "scipy>=1.11.0",
         "joblib>=1.3.0",
         "typer>=0.9.0",
         "fastapi>=0.110.0",
-        "uvicorn>=0.27.0"
+        "uvicorn>=0.27.0",
+        "watchdog>=3.0.0",
+        "firebase-admin>=6.0.0",
+        "python-dateutil>=2.8.0",
+        "tqdm>=4.65.0"
     ],
 
     extras_require={

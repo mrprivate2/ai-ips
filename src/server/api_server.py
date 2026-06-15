@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, HTTPException, Request
 from datetime import datetime
 
@@ -7,7 +8,7 @@ app = FastAPI()
 events = []
 
 MAX_EVENTS = 5000
-API_KEY = "secret123"   # change this
+API_KEY = os.environ.get("IPS_API_KEY", "change-me-in-production")
 
 
 # ----------------------------------

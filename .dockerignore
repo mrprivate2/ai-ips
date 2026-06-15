@@ -3,3 +3,8 @@ logs
 __pycache__
 *.pyc
 .git
+.vscode
+ai_ips.egg-info
+*.egg-info
+configs/firebase_key.json
+.DS_Store

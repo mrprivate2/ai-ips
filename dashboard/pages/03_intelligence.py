@@ -18,7 +18,7 @@ if st.button("🔄 Refresh Intelligence"):
     st.rerun()
 
 BASE_DIR = pathlib.Path(__file__).resolve().parents[2]
-LOG_FILE = BASE_DIR / "logs" / "security_events.json"
+LOG_FILE = BASE_DIR / "logs" / "security_events.jsonl"
 
 
 # =============================
@@ -26,13 +26,16 @@ LOG_FILE = BASE_DIR / "logs" / "security_events.json"
 # =============================
 
 def load_events():
+    events = []
     try:
         if LOG_FILE.exists():
             with open(LOG_FILE) as f:
-                return json.load(f)
-    except:
-        pass
-    return []
+                for line in f:
+                    if line.strip():
+                        events.append(json.loads(line))
+    except Exception as e:
+        st.error(f"Error loading logs: {e}")
+    return events
 
 
 events = load_events()

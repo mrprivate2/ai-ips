@@ -8,4 +8,6 @@ logs/*.txt
 
 src/models/saved/*.pkl
 
+configs/firebase_key.json
+
 .DS_Store

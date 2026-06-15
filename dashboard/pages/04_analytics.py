@@ -17,16 +17,19 @@ st.title("🛡️ AI Intrusion Prevention System - Analytics Dashboard")
 @st.cache_data(ttl=5)
 def load_data():
     BASE_DIR = pathlib.Path(__file__).resolve().parents[2]
-    LOG_FILE = BASE_DIR / "logs" / "security_events.json"
+    LOG_FILE = BASE_DIR / "logs" / "security_events.jsonl"
 
+    events = []
     try:
         if LOG_FILE.exists():
             with open(LOG_FILE) as f:
-                return pd.DataFrame(json.load(f))
+                for line in f:
+                    if line.strip():
+                        events.append(json.loads(line))
     except Exception as e:
         st.error(f"Error loading logs: {e}")
 
-    return pd.DataFrame()
+    return pd.DataFrame(events)
 
 
 df = load_data()
